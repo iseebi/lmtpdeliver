@@ -64,6 +64,7 @@ func (s *LMTPDeliverServer) DeliveryMessage(writer http.ResponseWriter, request 
 	file, _, err := request.FormFile("mail")
 	if err != nil {
 		writer.WriteHeader(400)
+		return
 	}
 	if recipients == "" {
 		writer.WriteHeader(400)
@@ -72,8 +73,6 @@ func (s *LMTPDeliverServer) DeliveryMessage(writer http.ResponseWriter, request 
 	var from string
 	if sender == "" {
 		from = "undisclosed-recipients"
-		writer.WriteHeader(400)
-		return
 	} else {
 		from = sender
 	}
