@@ -64,24 +64,29 @@ func (s *LMTPDeliverServer) forwardMessage(from string, to string, contents io.R
 }
 
 func (s *LMTPDeliverServer) DeliveryMessage(writer http.ResponseWriter, request *http.Request) {
-	recipients := request.FormValue("to")
+	recipient := request.FormValue("to")
 	sender := request.FormValue("from")
-	file, _, err := request.FormFile("mail")
+	file, fileHeader, err := request.FormFile("mail")
 	if err != nil {
 		writer.WriteHeader(400)
 		return
 	}
-	if recipients == "" {
+	if fileHeader.Size == 0 {
+		writer.WriteHeader(400)
+		return
+	}
+	if recipient == "" {
 		writer.WriteHeader(400)
 		return
 	}
 	var from string
 	if sender == "" {
-		from = "undisclosed-recipients"
+		from = "undisclosed-recipient"
 	} else {
 		from = sender
 	}
-	err = s.forwardMessage(from, recipients, file)
+
+	err = s.forwardMessage(from, recipient, file)
 	writer.WriteHeader(204)
 }
 
