@@ -2,9 +2,9 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"github.com/emersion/go-smtp"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"time"
@@ -68,14 +68,17 @@ func (s *LMTPDeliverServer) DeliveryMessage(writer http.ResponseWriter, request 
 	sender := request.FormValue("from")
 	file, fileHeader, err := request.FormFile("mail")
 	if err != nil {
+		log.Printf("file read error %s", err)
 		writer.WriteHeader(400)
 		return
 	}
 	if fileHeader.Size == 0 {
+		log.Println("empty file")
 		writer.WriteHeader(400)
 		return
 	}
 	if recipient == "" {
+		log.Println("recipient not set")
 		writer.WriteHeader(400)
 		return
 	}
@@ -87,6 +90,12 @@ func (s *LMTPDeliverServer) DeliveryMessage(writer http.ResponseWriter, request 
 	}
 
 	err = s.forwardMessage(from, recipient, file)
+	if err != nil {
+		log.Printf("LMTP error %s", err)
+		writer.WriteHeader(500)
+		return
+	}
+	log.Printf("Success: %s", recipient)
 	writer.WriteHeader(204)
 }
 
@@ -106,6 +115,6 @@ func main() {
 	lmtpServer := NewServer(*server, *helloServer)
 
 	http.HandleFunc("/delivery", lmtpServer.DeliveryMessage)
-	fmt.Println("Listening...")
+	log.Println("Listening...")
 	_ = http.ListenAndServe(*listen, nil)
 }
