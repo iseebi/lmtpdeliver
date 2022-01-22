@@ -43,7 +43,9 @@ func (s *LMTPDeliverServer) forwardMessage(from string, to string, contents io.R
 
 	var errors []*smtp.SMTPError
 	w, err := c.LMTPData(func(rcpt string, status *smtp.SMTPError) {
-		errors = append(errors, status)
+		if status != nil {
+			errors = append(errors, status)
+		}
 	})
 	if err != nil {
 		return err
