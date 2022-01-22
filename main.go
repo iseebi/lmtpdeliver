@@ -2,9 +2,9 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"github.com/emersion/go-smtp"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"time"
@@ -21,6 +21,9 @@ func (s *LMTPDeliverServer) forwardMessage(from string, to string, contents io.R
 	if err != nil {
 		return err
 	}
+	defer func(conn net.Conn) {
+		_ = conn.Close()
+	}(conn)
 	host, _, _ := net.SplitHostPort(s.server)
 	c, err := smtp.NewClientLMTP(conn, host)
 	if err != nil {
@@ -40,7 +43,9 @@ func (s *LMTPDeliverServer) forwardMessage(from string, to string, contents io.R
 
 	var errors []*smtp.SMTPError
 	w, err := c.LMTPData(func(rcpt string, status *smtp.SMTPError) {
-		errors = append(errors, status)
+		if status != nil {
+			errors = append(errors, status)
+		}
 	})
 	if err != nil {
 		return err
@@ -59,24 +64,38 @@ func (s *LMTPDeliverServer) forwardMessage(from string, to string, contents io.R
 }
 
 func (s *LMTPDeliverServer) DeliveryMessage(writer http.ResponseWriter, request *http.Request) {
-	recipients := request.FormValue("to")
+	recipient := request.FormValue("to")
 	sender := request.FormValue("from")
-	file, _, err := request.FormFile("mail")
+	file, fileHeader, err := request.FormFile("mail")
 	if err != nil {
+		log.Printf("file read error %s", err)
 		writer.WriteHeader(400)
 		return
 	}
-	if recipients == "" {
+	if fileHeader.Size == 0 {
+		log.Println("empty file")
+		writer.WriteHeader(400)
+		return
+	}
+	if recipient == "" {
+		log.Println("recipient not set")
 		writer.WriteHeader(400)
 		return
 	}
 	var from string
 	if sender == "" {
-		from = "undisclosed-recipients"
+		from = "undisclosed-recipient"
 	} else {
 		from = sender
 	}
-	err = s.forwardMessage(from, recipients, file)
+
+	err = s.forwardMessage(from, recipient, file)
+	if err != nil {
+		log.Printf("LMTP error %s", err)
+		writer.WriteHeader(500)
+		return
+	}
+	log.Printf("Success: %s", recipient)
 	writer.WriteHeader(204)
 }
 
@@ -96,6 +115,6 @@ func main() {
 	lmtpServer := NewServer(*server, *helloServer)
 
 	http.HandleFunc("/delivery", lmtpServer.DeliveryMessage)
-	fmt.Println("Listening...")
+	log.Println("Listening...")
 	_ = http.ListenAndServe(*listen, nil)
 }
