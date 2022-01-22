@@ -21,6 +21,9 @@ func (s *LMTPDeliverServer) forwardMessage(from string, to string, contents io.R
 	if err != nil {
 		return err
 	}
+	defer func(conn net.Conn) {
+		_ = conn.Close()
+	}(conn)
 	host, _, _ := net.SplitHostPort(s.server)
 	c, err := smtp.NewClientLMTP(conn, host)
 	if err != nil {
